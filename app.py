@@ -17,9 +17,9 @@ class SwapDict(dict):
 
     Args:
     1. filename - swap file name
-    2. delete_file - status of delete file is him exists
+    2. delete_file - status of delete file if him exists
     3. lock - multiprocessing.Lock() for safe multiprocessing work
-    3. semaphore - hreading.Semaphore() for safe mulithreading work
+    3. semaphore - threading.Semaphore() for safe mulithreading work
     """
 
     def __init__(
@@ -71,7 +71,7 @@ class SwapDict(dict):
         value = None
         with self.cm as file:
             if type(key) == int:
-                hash = md5.md5(str(key)).hexdigest()
+                hash = md5(str(key)).hexdigest()
                 if hash not in self.int_keys:
                     raise KeyError
                 value = file[hash]
@@ -97,11 +97,6 @@ class SwapDict(dict):
                       values).__iter__()
         return ret
 
-    def __length_hint__(self):
-        with self.cm as file:
-            value = self.file.__length_hint__()
-        return value
-
     def __missing__(self, key):
         with self.cm as file:
             value = self.file.__missing__(key)
@@ -110,11 +105,13 @@ class SwapDict(dict):
     def __delitem__(self, key):
         with self.cm as file:
             if type(key) == int:
-                hash = md5.md5(str(key)).hexdigest()
+                hash = md5(str(key)).hexdigest()
                 if hash not in self.int_keys:
                     raise KeyError
                 del self.int_keys[self.int_keys.index(hash)]
                 del file[hash]
+            else:
+                del file[key]
 
     def values(self):
         values = list()
