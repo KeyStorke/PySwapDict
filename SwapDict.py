@@ -1,20 +1,50 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-
+# for swap dict
 from hashlib import md5
-from cm import ContextManager
 from threading import Semaphore
 from multiprocessing import Lock
 from multiprocessing import Manager
+# for context manager
+import os
+import shelve
 
 
-class SwapDict(dict):
+class ContextManager:
+    """ Context manager for IO operations for dict-file
+    """
+
+    def __init__(self, filename, delete_file, lock, semaphore):
+        self.filename = filename
+        # checking exists file and removing him
+        if os.path.isfile(self.filename):
+            if delete_file:
+                os.remove(self.filename)
+            else:
+                raise SystemError
+        self.file_instance = shelve.open(self.filename)
+        self.file_instance.close()
+        # init mutex for multithreading
+        self.semaphore = semaphore
+        # init lock for multiprocessing
+        self.lock = lock
+
+    def __enter__(self):
+        self.semaphore.acquire()
+        self.lock.acquire()
+        self.file_instance = shelve.open(self.filename)
+        return self.file_instance
+
+    def __exit__(self, *args):
+        self.file_instance.close()
+        self.lock.release()
+        self.semaphore.release()
+
+
+class SwapDict:
 
     """ Classic python dict() with swap data into disk space
     Features:
     1. safe multithreading and multiprocessing
     2. swap data into disk space
-
     Args:
     1. filename - swap file name
     2. delete_file - status of delete file if him exists
@@ -75,7 +105,8 @@ class SwapDict(dict):
                 if hash not in self.int_keys:
                     raise KeyError
                 value = file[hash]
-            value = file[key]
+            else:
+                value = file[key]
         return value
 
     def __str__(self):
@@ -85,7 +116,7 @@ class SwapDict(dict):
 
     def __len__(self):
         with self.cm as file:
-            value = len(self.file)
+            value = len(file)
         return value
 
     def __iter__(self):
@@ -99,7 +130,7 @@ class SwapDict(dict):
 
     def __missing__(self, key):
         with self.cm as file:
-            value = self.file.__missing__(key)
+            value = file.__missing__(key)
         return value
 
     def __delitem__(self, key):
