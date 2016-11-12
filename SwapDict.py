@@ -27,6 +27,10 @@ import string
 
 
 def rand_string(length=10):
+    """ Generate and return random string
+    Args:
+    1. length - length of random string
+    """
     return ''.join(random.choice(string.digits + string.ascii_lowercase +
                    string.ascii_uppercase) for i in range(length))
 
