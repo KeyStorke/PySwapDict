@@ -6,6 +6,14 @@ from hashlib import md5
 from threading import Semaphore
 from multiprocessing import Lock
 from multiprocessing import freeze_support
+from multiprocessing import Manager
+import sys
+
+# for logging
+
+import logging
+from logging import INFO
+from logging import DEBUG
 
 # for context manager
 
@@ -75,7 +83,7 @@ class SwapDict:
     """
 
     def __init__(self, filename=None, delete_file=True, lock=None,
-                semaphore=None, manager=None):
+                 semaphore=None, manager=None):
         self.swap_filename = (filename if filename else rand_string())
 
         # for sync multi- processing/threading
@@ -90,16 +98,27 @@ class SwapDict:
                                  delete_file=delete_file,
                                  semaphore=self.semaphore,
                                  lock=self.lock)
-        if manager:
-            print 'INIT SWAP DICT WITH MANAGER!'
-        else:
-            print 'INIT SWAP DICT WITHOUT MANAGER!'
+        # setup logging
 
-        # TODO fix EOFError after build pyinstaller
+        myhandler = logging.StreamHandler()
+        myformatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        myhandler.setFormatter(myformatter)
+        self.logger = logging.getLogger(name=__name__)
+        self.logger.addHandler(myhandler)
+        self.logger.setLevel(INFO)
+
+        if not hasattr(sys, "_MEIPASS") and not manager:
+            manager = Manager()
+
+        if manager:
+            self.logger.debug('INIT SWAP DICT WITH MANAGER!')
+        else:
+            self.logger.debug('INIT SWAP DICT WITHOUT MANAGER!')
 
         self.manager = (manager if manager else None)
 
-        # init thread-safe list
+        # init thread-safe list or simple list
 
         self.int_keys = \
             (self.manager.dict() if self.manager else dict())
@@ -109,7 +128,7 @@ class SwapDict:
 
     def __setitem__(self, key, value):
         with self.cm as file:
-            if type(key) == int:
+            if isinstance(key, int):
 
                 # calculate checksum
 
@@ -132,6 +151,7 @@ class SwapDict:
             if type(key) == int:
                 hash = md5(str(key)).hexdigest()
                 if hash not in self.int_keys:
+                    self.logger.debug("KeyError with %s", str(key))
                     raise KeyError
                 value = file[hash]
             else:
@@ -167,6 +187,7 @@ class SwapDict:
             if type(key) == int:
                 hash = md5(str(key)).hexdigest()
                 if hash not in self.int_keys:
+                    self.logger.debug("KeyError with %s", str(key))
                     raise KeyError
                 del self.int_keys[self.int_keys.index(hash)]
                 del file[hash]
