@@ -173,13 +173,7 @@ class SwapDict:
         return value
 
     def __iter__(self):
-        value = dict()
-        with self.cm as file:
-            keys = file.keys()
-            values = file.values()
-            ret = map(lambda k, v: value.update({k: v}), keys,
-                      values).__iter__()
-        return ret
+        return dict(zip(self.keys(), self.values())).__iter__()
 
     def __missing__(self, key):
         with self.cm as file:
