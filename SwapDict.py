@@ -111,8 +111,11 @@ class SwapDict:
         self.logger = logging.getLogger(name=__name__)
         self.logger.addHandler(myhandler)
         self.logger.setLevel(INFO)
+        
+        # checking for pyinstaller
 
         if not hasattr(sys, "_MEIPASS") and not manager:
+            # pyinstaller not detected, create SyncManager
             manager = Manager()
 
         if manager:
