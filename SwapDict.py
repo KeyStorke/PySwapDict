@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 # -*- coding: utf-8 -*-
 # for swap dict
 
@@ -152,8 +152,8 @@ class SwapDict:
     def __getitem__(self, key):
         value = None
         with self.cm as file:
-            if type(key) == int:
-                hash = md5(str(key)).hexdigest()
+            if isinstance(key, int):
+                hash = md5(str(key).encode()).hexdigest()
                 if hash not in self.int_keys:
                     self.logger.debug("KeyError with %s", str(key))
                     raise KeyError
