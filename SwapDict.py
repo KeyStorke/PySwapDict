@@ -9,12 +9,6 @@ from multiprocessing import freeze_support
 from multiprocessing import Manager
 import sys
 
-# for logging
-
-import logging
-from logging import INFO
-from logging import DEBUG
-
 # for context manager
 
 import os
@@ -40,7 +34,7 @@ class ContextManager:
     """ Context manager for IO operations for dict-file
     """
 
-    def __init__(self, filename, delete_file, lock, semaphore):
+    def __init__(self, filename, lock, semaphore, delete_file=True):
         self.filename = filename
 
         # checking exists file and removing him
@@ -50,8 +44,8 @@ class ContextManager:
                 os.remove(self.filename)
             else:
                 raise SystemError
-        self.file_instance = shelve.open(self.filename)
-        self.file_instance.close()
+        self.__file_instance = shelve.open(self.filename)
+        self.__file_instance.close()
 
         # init mutex for multithreading
 
@@ -60,15 +54,22 @@ class ContextManager:
         # init lock for multiprocessing
 
         self.lock = lock
+        
+        # counter call context
+        self.__context_couner = 0
 
     def __enter__(self):
         self.semaphore.acquire()
         self.lock.acquire()
-        self.file_instance = shelve.open(self.filename)
-        return self.file_instance
+        self.__context_couner += 1
+        if self.__context_couner == 1:
+            self.__file_instance = shelve.open(self.filename)
+        return self.__file_instance
 
     def __exit__(self, *args):
-        self.file_instance.close()
+        self.__context_couner -= 1
+        if self.__context_couner == 0:
+            self.__file_instance.close()
         self.lock.release()
         self.semaphore.release()
 
@@ -88,13 +89,13 @@ class SwapDict:
 
     def __init__(self, filename=None, delete_file=True, lock=None,
                  semaphore=None, manager=None):
-        self.swap_filename = (filename if filename else rand_string())
+        self.swap_filename = (filename if filename is not None else rand_string())
 
         # for sync multi- processing/threading
 
         freeze_support()
-        self.semaphore = (semaphore if semaphore else Semaphore())
-        self.lock = (lock if lock else Lock())
+        self.semaphore = (semaphore if semaphore is not None else Semaphore())
+        self.lock = (lock if lock is not None else Lock())
 
         # for safe multiprocessing
 
@@ -102,26 +103,12 @@ class SwapDict:
                                  delete_file=delete_file,
                                  semaphore=self.semaphore,
                                  lock=self.lock)
-        # setup logging
-
-        myhandler = logging.StreamHandler()
-        myformatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        myhandler.setFormatter(myformatter)
-        self.logger = logging.getLogger(name=__name__)
-        self.logger.addHandler(myhandler)
-        self.logger.setLevel(INFO)
         
         # checking for pyinstaller
 
         if not hasattr(sys, "_MEIPASS") and not manager:
             # pyinstaller not detected, create SyncManager
             manager = Manager()
-
-        if manager:
-            self.logger.debug('INIT SWAP DICT WITH MANAGER!')
-        else:
-            self.logger.debug('INIT SWAP DICT WITHOUT MANAGER!')
 
         self.manager = (manager if manager else None)
 
@@ -158,7 +145,6 @@ class SwapDict:
             if isinstance(key, int):
                 hash = md5(str(key).encode()).hexdigest()
                 if hash not in self.int_keys:
-                    self.logger.debug("KeyError with %s", str(key))
                     raise KeyError
                 value = file[hash]
             else:
@@ -185,10 +171,9 @@ class SwapDict:
 
     def __delitem__(self, key):
         with self.cm as file:
-            if type(key) == int:
+            if isinstance(key, int):
                 hash = md5(str(key)).hexdigest()
                 if hash not in self.int_keys:
-                    self.logger.debug("KeyError with %s", str(key))
                     raise KeyError
                 del self.int_keys[self.int_keys.index(hash)]
                 del file[hash]
