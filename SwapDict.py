@@ -5,7 +5,6 @@
 from hashlib import md5
 from threading import Semaphore
 from multiprocessing import Lock
-from multiprocessing import freeze_support
 from multiprocessing import Manager
 import sys
 
@@ -19,6 +18,11 @@ import shelve
 import random
 import string
 
+# for tests
+
+import unittest
+import threading
+
 
 def rand_string(length=10):
     """ Generate and return random string
@@ -26,11 +30,10 @@ def rand_string(length=10):
     1. length - length of random string
     """
     return ''.join(random.choice(string.digits + string.ascii_lowercase +
-                   string.ascii_uppercase) for i in range(length))
+                                 string.ascii_uppercase) for i in range(length))
 
 
 class ContextManager:
-
     """ Context manager for IO operations for dict-file
     """
 
@@ -54,7 +57,7 @@ class ContextManager:
         # init lock for multiprocessing
 
         self.lock = lock
-        
+
         # counter call context
         self.__context_couner = 0
 
@@ -75,7 +78,6 @@ class ContextManager:
 
 
 class SwapDict:
-
     """ Classic python dict() with swap data into disk space
     Features:
     1. safe multithreading and multiprocessing
@@ -89,11 +91,10 @@ class SwapDict:
 
     def __init__(self, filename=None, delete_file=True, lock=None,
                  semaphore=None, manager=None):
-        self.swap_filename = (filename if filename is not None else rand_string())
+        self.swap_filename = str(filename if filename is not None else rand_string())
 
         # for sync multi- processing/threading
 
-        freeze_support()
         self.semaphore = (semaphore if semaphore is not None else Semaphore())
         self.lock = (lock if lock is not None else Lock())
 
@@ -103,14 +104,15 @@ class SwapDict:
                                  delete_file=delete_file,
                                  semaphore=self.semaphore,
                                  lock=self.lock)
-        
+
         # checking for pyinstaller
 
-        if not hasattr(sys, "_MEIPASS") and not manager:
+        if not hasattr(sys, "_MEIPASS") and manager is None and (
+                "win" not in sys.platform and sys.platform != "darwin"):
             # pyinstaller not detected, create SyncManager
             manager = Manager()
 
-        self.manager = (manager if manager else None)
+        self.manager = (manager if manager is not None else None)
 
         # init thread-safe list or simple list
 
@@ -118,7 +120,13 @@ class SwapDict:
             (self.manager.dict() if self.manager else dict())
 
     def __del__(self):
-        os.remove(self.swap_filename)
+        # under linux created one file, under windows - 3
+        for filename in os.listdir(os.path.expanduser(".")):
+            if filename.split(".")[0] == self.swap_filename:
+                try:
+                    os.remove(filename)
+                except FileNotFoundError:
+                    pass
 
     def __setitem__(self, key, value):
         with self.cm as file:
@@ -187,7 +195,6 @@ class SwapDict:
         return values
 
     def keys(self):
-        pseudo_keys = list()
         keys = list()
         with self.cm as file:
             pseudo_keys = file.keys()
@@ -197,3 +204,138 @@ class SwapDict:
                 else:
                     keys.append(key)
         return keys
+
+
+class __Tests(unittest.TestCase):
+    def test_keys_dict(self):
+        """ Testing method SwapDict.keys()
+        """
+        d = SwapDict(delete_file=True)
+        for i in range(0, 10):
+            d[i] = str(i)
+
+        self.assertEqual(sorted(d.keys()), sorted([x for x in range(0, 10)]),
+                         "Error in method __setitem__() or keys()")
+
+    def test_values_dict(self):
+        """ Testing method SwapDict.values()
+        """
+        d = SwapDict(delete_file=True)
+        for i in range(0, 10):
+            d[i] = str(i)
+
+        self.assertEqual(sorted(d.values()), sorted([str(x) for x in range(0, 10)]),
+                         "Error in method __setitem__() or values()")
+
+    def test_len_dict(self):
+        """ Testing method SwapDict.__len__()
+        """
+        d = SwapDict(delete_file=True)
+        for i in range(0, 10):
+            d[i] = str(i)
+
+        self.assertTrue(len(d) == 10, "Error mehod __len__()")
+
+    def test_setitem_dict(self):
+        """ Testing method SwapDict.__setitem__()
+        """
+        d = SwapDict(delete_file=True)
+        for i in range(0, 10):
+            d[i] = str(i)
+
+        for key in d:
+            self.assertTrue(key == int(d[key]), "Error in method __setitem__() \n"
+                                                "key: %s, value: %s" % (str(key), d[key]))
+
+    def test_multithreading_creation_dict(self):
+        """ Testing multithreading creation dict
+
+        :return:
+        """
+        # for sync
+        semaphore = Semaphore()
+        lock = Lock()
+
+        d = SwapDict(
+            delete_file=True,
+            lock=lock,
+            semaphore=semaphore,
+        )
+
+        # first process
+        def first():
+            for i in range(10, 21):
+                d[i] = i + 1
+
+        # second process
+        def second():
+            for i in range(0, 11):
+                d[i] = i + 2
+
+        # init thread
+        t1 = threading.Thread(target=first)
+        t2 = threading.Thread(target=second)
+
+        # starting process
+        t1.start()
+        t2.start()
+
+        # wait for process
+        t1.join()
+        t2.join()
+
+        self.assertFalse(len(d) != 21, "Error creaion dict, check SyncManager")
+
+        for key in d:
+            self.assertFalse(d[key] - key != 1 and d[key] - key != 2, "multiprocess creation dict error!")
+
+    def test_multithreading_read_dict(self):
+        """ Testing multithreading creation dict
+
+            :return:
+            """
+        # for sync
+        semaphore = Semaphore()
+        lock = Lock()
+
+        d = SwapDict(
+            delete_file=True,
+            lock=lock,
+            semaphore=semaphore,
+        )
+
+        for i in range(0, 10):
+            d[i] = i
+
+        # first process
+        def first():
+            for i in d:
+                # print("from first thread: key = %s, value = %s" % (i, d[i]))
+                d[i] += 1
+
+        # second process
+        def second():
+            for i in d:
+                # print("from second thread: key = %s, value = %s" % (i, d[i]))
+                d[i] += 2
+
+        # init thread
+        t1 = threading.Thread(target=first)
+        t2 = threading.Thread(target=second)
+
+        # starting process
+        t1.start()
+        t2.start()
+
+        # wait for process
+        t1.join()
+        t2.join()
+
+        self.assertFalse(len(d) != 10, "Error creation dict, check SyncManager")
+
+        for key in d:
+            self.assertTrue(key == d[key]-3, "Error multithreading reading dict")
+
+
+if __name__ == "__main__":
+    unittest.main()
