@@ -23,16 +23,7 @@ import random
 import string
 
 
-def rand_string(length=10):
-    """ Generate and return random string
-    Args:
-    1. length - length of random string
-    """
-    return ''.join(random.choice(string.digits + string.ascii_lowercase +
-                                 string.ascii_uppercase) for simbol in range(length))
-
-
-class ContextManager:
+class __ContextManager__:
     """ Context manager for IO operations for dict-file
     """
 
@@ -90,7 +81,7 @@ class SwapDict(object):
 
     def __init__(self, dictionary = None, filename=None, delete_file=True, lock=None,
                  semaphore=None, manager=None, *args):
-        self.swap_filename = str(filename if filename is not None else rand_string())
+        self.swap_filename = str(filename if filename is not None else self.__rand_string())
 
         # for sync multi- processing/threading
 
@@ -99,7 +90,7 @@ class SwapDict(object):
 
         # for safe multiprocessing
 
-        self.cm = ContextManager(filename=self.swap_filename,
+        self.cm = __ContextManager__(filename=self.swap_filename,
                                  delete_file=delete_file,
                                  semaphore=self.semaphore,
                                  lock=self.lock)
@@ -127,6 +118,14 @@ class SwapDict(object):
                     for key in arg:
                         self.__setitem__(key=key, value=arg[key])
 
+    @staticmethod
+    def __rand_string(length=10):
+        """ Generate and return random string
+        Args:
+        1. length - length of random string
+        """
+        return ''.join(random.choice(string.digits + string.ascii_lowercase +
+                                     string.ascii_uppercase) for simbol in range(length))
 
     def __del__(self):
         # under linux created one file, under windows - 3
@@ -213,3 +212,5 @@ class SwapDict(object):
                 else:
                     keys.append(key)
         return keys
+
+__all__ = ["SwapDict"]

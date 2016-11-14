@@ -4,7 +4,8 @@ from SwapDict import SwapDict
 from threading import Semaphore
 from multiprocessing import Lock
 
-class __Tests(unittest.TestCase):
+
+class Tests(unittest.TestCase):
     def test_keys_dict(self):
         """ Testing method SwapDict.keys()
         """
