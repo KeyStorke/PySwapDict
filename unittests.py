@@ -154,5 +154,29 @@ class Tests(unittest.TestCase):
             self.assertTrue(key == d[key]-3, "Error multithreading reading dict")
         del d
 
+    def test_update_dict(self):
+        """ Testing method SwapDict.update()
+
+        :return:
+        """
+        std_dict = {'a': 1, 'b': 2, 'c': 3}
+        d = SwapDict(std_dict)
+
+        self.assertTrue(str(sorted(d)) == str(sorted(std_dict)),
+                        "Error creation SwapDict from dict, info: \nSwapDict: %s\n dict: %s" %
+                        (str(d), str(std_dict)))
+
+        d.update({'d': 4, 'e': 5, 'f': 6})
+        std_dict.update({'d': 4, 'e': 5, 'f': 6})
+
+        self.assertTrue(str(sorted(d)) == str(sorted(std_dict)),
+                        "Error update SwapDict from dict, info: \nSwapDict: %s\n dict: %s" %
+                        (str(d), str(std_dict)))
+        d.update(a=2)
+
+        self.assertTrue(d['a'] == 2,
+                        "Error update SwapDict from const, info: \nSwapDict: %s\n dict: %s" %
+                        (str(d), str(std_dict)))
+
 if __name__ == "__main__":
     unittest.main()

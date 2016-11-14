@@ -1,7 +1,7 @@
 # About
 
 Python swap-dictionary. Standard python class, with dict-like interface. Support:
- * iterator
+ * iteration, updating, creation from standard dictionary
  * swapping data to disk space
  * safe multiprocess/multithread work
  * support build with Pyinstaller

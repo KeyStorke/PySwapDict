@@ -213,4 +213,9 @@ class SwapDict(object):
                     keys.append(key)
         return keys
 
+    def update(self, other = [], **kwargs):
+        with self.cm as file:
+            file.update(other, **kwargs)
+
+
 __all__ = ["SwapDict"]
