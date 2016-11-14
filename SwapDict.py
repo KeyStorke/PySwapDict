@@ -81,7 +81,7 @@ class ContextManager:
         self.semaphore.release()
 
 
-class SwapDict:
+class SwapDict(object):
     """ Classic python dict() with swap data into disk space
     Features:
     1. safe multithreading and multiprocessing
@@ -93,8 +93,8 @@ class SwapDict:
     3. semaphore - threading.Semaphore() for safe multithreading work
     """
 
-    def __init__(self, filename=None, delete_file=True, lock=None,
-                 semaphore=None, manager=None, dictionary = None):
+    def __init__(self, dictionary = None, filename=None, delete_file=True, lock=None,
+                 semaphore=None, manager=None, *args):
         self.swap_filename = str(filename if filename is not None else rand_string())
 
         # for sync multi- processing/threading
@@ -126,6 +126,11 @@ class SwapDict:
         if dictionary is not None:
             for key in dictionary:
                 self.__setitem__(key=key, value=dictionary[key])
+        else:
+            for arg in args:
+                if isinstance(arg, dict):
+                    for key in arg:
+                        self.__setitem__(key=key, value=arg[key])
 
 
     def __del__(self):
@@ -304,17 +309,16 @@ class __Tests(unittest.TestCase):
         del d
 
     def test_creation_dict_from_std_dict(self):
+        """ Testing creation SwapDict from standard dict
+
+        :return:
+        """
         semaphore = Semaphore()
         lock = Lock()
 
         std_dict = {'a': 1, 'b': 2, 'c': 3}
 
-        d = SwapDict(
-            delete_file=True,
-            lock=lock,
-            semaphore=semaphore,
-            dictionary=std_dict
-        )
+        d = SwapDict(std_dict)
         self.assertTrue(str(sorted(d)) == str(sorted(std_dict)), "Error creation SwapDict from dict, info: \nSwapDict: %s\n dict: %s" %
                         (str(d), str(std_dict)))
         del d
