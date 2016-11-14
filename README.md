@@ -6,7 +6,8 @@ Python swap-dictionary. Standard python class, with dict-like interface. Support
  * safe multiprocess/multithread work
  * support build with Pyinstaller
  * Python 2.7 or higher  (including 3.5)
-
+ * creation SwapDict from standard dictionary
+ 
 # Example:
 
 ```python
@@ -20,7 +21,5 @@ for i in range(0, 20):
 
 # TODO
 
-- [ ] Creating dict of dict-object from argument
-- [ ] Create setup script
 - [ ] Create ContextManager without shelve (and him bugs!)
 
