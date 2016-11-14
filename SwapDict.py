@@ -315,7 +315,7 @@ class __Tests(unittest.TestCase):
             semaphore=semaphore,
             dictionary=std_dict
         )
-        self.assertTrue(str(d) == str(std_dict), "Error creation SwapDict from dict, info: \nSwapDict: %s\n dict: %s" %
+        self.assertTrue(str(sorted(d)) == str(sorted(std_dict)), "Error creation SwapDict from dict, info: \nSwapDict: %s\n dict: %s" %
                         (str(d), str(std_dict)))
         del d
 
