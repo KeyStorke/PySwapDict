@@ -1,5 +1,9 @@
 #!/usr/bin/python2
 # -*- coding: utf-8 -*-
+""" Module PySwapDict implement python dictionary with automatically swap data to disk space
+
+
+"""
 # for swap dict
 
 from hashlib import md5
@@ -30,7 +34,7 @@ def rand_string(length=10):
     1. length - length of random string
     """
     return ''.join(random.choice(string.digits + string.ascii_lowercase +
-                                 string.ascii_uppercase) for i in range(length))
+                                 string.ascii_uppercase) for simbol in range(length))
 
 
 class ContextManager:
@@ -59,19 +63,19 @@ class ContextManager:
         self.lock = lock
 
         # counter call context
-        self.__context_couner = 0
+        self.__context_counter = 0
 
     def __enter__(self):
         self.semaphore.acquire()
         self.lock.acquire()
-        self.__context_couner += 1
-        if self.__context_couner == 1:
+        self.__context_counter += 1
+        if self.__context_counter == 1:
             self.__file_instance = shelve.open(self.filename)
         return self.__file_instance
 
     def __exit__(self, *args):
-        self.__context_couner -= 1
-        if self.__context_couner == 0:
+        self.__context_counter -= 1
+        if self.__context_counter == 0:
             self.__file_instance.close()
         self.lock.release()
         self.semaphore.release()
@@ -86,11 +90,11 @@ class SwapDict:
     1. filename - swap file name
     2. delete_file - status of delete file if him exists
     3. lock - multiprocessing.Lock() for safe multiprocessing work
-    3. semaphore - threading.Semaphore() for safe mulithreading work
+    3. semaphore - threading.Semaphore() for safe multithreading work
     """
 
     def __init__(self, filename=None, delete_file=True, lock=None,
-                 semaphore=None, manager=None):
+                 semaphore=None, manager=None, dictionary = None):
         self.swap_filename = str(filename if filename is not None else rand_string())
 
         # for sync multi- processing/threading
@@ -119,6 +123,11 @@ class SwapDict:
         self.int_keys = \
             (self.manager.dict() if self.manager else dict())
 
+        if dictionary is not None:
+            for key in dictionary:
+                self.__setitem__(key=key, value=dictionary[key])
+
+
     def __del__(self):
         # under linux created one file, under windows - 3
         for filename in os.listdir(os.path.expanduser(".")):
@@ -130,20 +139,20 @@ class SwapDict:
 
     def __setitem__(self, key, value):
         with self.cm as file:
-            if isinstance(key, int):
+            if not isinstance(key, str):
 
                 # calculate checksum
 
-                hash = md5(str(key).encode()).hexdigest()
+                key_hash = md5(str(key).encode()).hexdigest()
 
                 # remember hash
 
-                if hash not in self.int_keys:
-                    self.int_keys[hash] = key
+                if key_hash not in self.int_keys:
+                    self.int_keys[key_hash] = key
 
                 # add to dict-file
 
-                file[hash] = value
+                file[key_hash] = value
             else:
                 file[key] = value
 
@@ -151,18 +160,16 @@ class SwapDict:
         value = None
         with self.cm as file:
             if isinstance(key, int):
-                hash = md5(str(key).encode()).hexdigest()
-                if hash not in self.int_keys:
+                key_hash = md5(str(key).encode()).hexdigest()
+                if key_hash not in self.int_keys:
                     raise KeyError
-                value = file[hash]
+                value = file[key_hash]
             else:
                 value = file[key]
         return value
 
     def __str__(self):
-        with self.cm as file:
-            value = str(file)
-        return value
+        return dict(zip(self.keys(), self.values())).__str__()
 
     def __len__(self):
         with self.cm as file:
@@ -180,16 +187,18 @@ class SwapDict:
     def __delitem__(self, key):
         with self.cm as file:
             if isinstance(key, int):
-                hash = md5(str(key)).hexdigest()
-                if hash not in self.int_keys:
+                key_hash = md5(str(key)).hexdigest()
+                if key_hash not in self.int_keys:
                     raise KeyError
-                del self.int_keys[self.int_keys.index(hash)]
-                del file[hash]
+                del self.int_keys[self.int_keys.index(key_hash)]
+                del file[key_hash]
             else:
                 del file[key]
 
+    def __repr__(self):
+        return dict(zip(self.keys(), self.values())).__repr__()
+
     def values(self):
-        values = list()
         with self.cm as file:
             values = list(file.values())
         return values
@@ -216,6 +225,7 @@ class __Tests(unittest.TestCase):
 
         self.assertEqual(sorted(d.keys()), sorted([x for x in range(0, 10)]),
                          "Error in method __setitem__() or keys()")
+        del d
 
     def test_values_dict(self):
         """ Testing method SwapDict.values()
@@ -226,6 +236,7 @@ class __Tests(unittest.TestCase):
 
         self.assertEqual(sorted(d.values()), sorted([str(x) for x in range(0, 10)]),
                          "Error in method __setitem__() or values()")
+        del d
 
     def test_len_dict(self):
         """ Testing method SwapDict.__len__()
@@ -234,7 +245,8 @@ class __Tests(unittest.TestCase):
         for i in range(0, 10):
             d[i] = str(i)
 
-        self.assertTrue(len(d) == 10, "Error mehod __len__()")
+        self.assertTrue(len(d) == 10, "Error method __len__()")
+        del d
 
     def test_setitem_dict(self):
         """ Testing method SwapDict.__setitem__()
@@ -246,6 +258,7 @@ class __Tests(unittest.TestCase):
         for key in d:
             self.assertTrue(key == int(d[key]), "Error in method __setitem__() \n"
                                                 "key: %s, value: %s" % (str(key), d[key]))
+        del d
 
     def test_multithreading_creation_dict(self):
         """ Testing multithreading creation dict
@@ -284,10 +297,27 @@ class __Tests(unittest.TestCase):
         t1.join()
         t2.join()
 
-        self.assertFalse(len(d) != 21, "Error creaion dict, check SyncManager")
+        self.assertFalse(len(d) != 21, "Error creation dict, check SyncManager")
 
         for key in d:
             self.assertFalse(d[key] - key != 1 and d[key] - key != 2, "multiprocess creation dict error!")
+        del d
+
+    def test_creation_dict_from_std_dict(self):
+        semaphore = Semaphore()
+        lock = Lock()
+
+        std_dict = {'a': 1, 'b': 2, 'c': 3}
+
+        d = SwapDict(
+            delete_file=True,
+            lock=lock,
+            semaphore=semaphore,
+            dictionary=std_dict
+        )
+        self.assertTrue(str(d) == str(std_dict), "Error creation SwapDict from dict, info: \nSwapDict: %s\n dict: %s" %
+                        (str(d), str(std_dict)))
+        del d
 
     def test_multithreading_read_dict(self):
         """ Testing multithreading creation dict
@@ -302,22 +332,20 @@ class __Tests(unittest.TestCase):
             delete_file=True,
             lock=lock,
             semaphore=semaphore,
+            dictionary=dict(zip(range(0, 10), range(0, 10)))
         )
-
-        for i in range(0, 10):
-            d[i] = i
 
         # first process
         def first():
-            for i in d:
+            for first_key in d:
                 # print("from first thread: key = %s, value = %s" % (i, d[i]))
-                d[i] += 1
+                d[first_key] += 1
 
         # second process
         def second():
-            for i in d:
+            for second_key in d:
                 # print("from second thread: key = %s, value = %s" % (i, d[i]))
-                d[i] += 2
+                d[second_key] += 2
 
         # init thread
         t1 = threading.Thread(target=first)
@@ -335,7 +363,7 @@ class __Tests(unittest.TestCase):
 
         for key in d:
             self.assertTrue(key == d[key]-3, "Error multithreading reading dict")
-
+        del d
 
 if __name__ == "__main__":
     unittest.main()
